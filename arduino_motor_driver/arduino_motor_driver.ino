@@ -30,6 +30,8 @@ int IstartingSensorHits = 0;
 int IendingSensorHits = 0;
 int Ienabled = 0;
 
+int direction = 1;
+
 void setup() {
   // Intialize Serial
   Serial.begin(9600);
@@ -72,10 +74,13 @@ void loop() {
       serialInput[0] = ' ';
       currentSpeed = atof(serialInput);
 
-      if (currentSpeed < 0)
+      if (currentSpeed < 0) {
+        Serial.println("ERROR: Speed below 0, setting to 0");
         currentSpeed = 0;
-      else if (currentSpeed > 1)
+      } else if (currentSpeed > 1) {
+        Serial.println("ERROR: Speed above 1, setting to 1");
         currentSpeed = 1;
+      }
 
       Serial.print("Setting speed to: ");
       Serial.println(currentSpeed);
@@ -111,8 +116,23 @@ void loop() {
         Serial.print(IendingSensorHits - IstartingSensorHits);
         Serial.println(" sensor hits in one rotation");
       }
+    } else if (serialInput[0] == 't') {
+        if (rpm <= 0.1) { 
+          Serial.println("Changing direction");
+          if (direction == 1) {
+              digitalWrite(driverIn1, LOW);
+              digitalWrite(driverIn2, HIGH);
+              direction = 0;
+          } else {
+              digitalWrite(driverIn1, HIGH);
+              digitalWrite(driverIn2, LOW);
+              direction = 1;
+          }
+        } else {
+          Serial.println("ERROR: Stop motor before changing direction");
+        }
     } else {
-      Serial.println("Invalid Command");
+      Serial.println("ERROR: Invalid Command");
     }
     clearSerialData();
   }
@@ -139,9 +159,5 @@ void clearSerialData() {
 }
 
 void sensorHit() {
-  if(digitalRead(hallSensorB) == HIGH){
   sensorHits_i++;
-  } else {
-  sensorHits_i--;
-  }
 }
