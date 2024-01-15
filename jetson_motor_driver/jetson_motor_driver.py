@@ -1,5 +1,6 @@
 import time
 import sys
+from getkey import getkey, keys
 import serial
 
 Nano = serial.Serial(port="/dev/ttyUSB0", baudrate=9600, timeout=1)
@@ -14,32 +15,42 @@ def serial_read():
 
 
 def run_motors():
-    # ramp up speed while printing speed
-    for i in range(30, 101, 1):
-        serial_write(f"s {i/100}")
-        speed = serial_read()
-        time.sleep(0.5)
+    input("Press [enter] to start, then press [Ctrl C] to exit program")
+    serial_write("s 1")
+    serial_read()
+    serial_write("m")
+    serial_read()
+    serial_write("s 1")
+    serial_read()
+    while True:
         serial_write("r")
-        rpm = serial_read()
-        print(speed, rpm, end="\r")
-    print("")
-    for i in range(0, 40, 1):
+        m1_rpm = serial_read()[13 : 13 + 5]
+        serial_write("m")
+        serial_read()
         serial_write("r")
-        print(serial_read(), end="\r")
+        m2_rpm = serial_read()[13 : 13 + 5]
+        serial_write("m")
+        serial_read()
+        print(f"Motor 1 Speed: {m1_rpm} | Motor 2 Speed: {m2_rpm}", end="\r")
         time.sleep(0.1)
-    print("")
-
     serial_write("s 0")
-    print(serial_read())
+    serial_read()
+    serial_write("m")
+    serial_read()
+    serial_write("s 0")
+    serial_read()
 
 
 def conf_motor_dirs():
-    input("Press [enter] to start the motor")
+    input("Press [enter] to start currently selected motor")
     serial_write("s 0.5")
+    serial_read()
+    serial_read()
     serial_read()
     while True:
         print("\t[1] Change motor direction")
-        print("\t[2] exit")
+        print("\t[2] Swap currently selected motor")
+        print("\t[3] exit")
         choice = input()
         match choice:
             case "1":
@@ -48,11 +59,19 @@ def conf_motor_dirs():
                 serial_write("t")
                 while serial_read() == "ERROR: Stop motor before changing direction":
                     serial_write("t")
-                    time.sleep(0.6)
+                    time.sleep(0.1)
+                serial_read()
                 serial_write("s 0.5")
                 serial_read()
                 print("Direction Changed")
             case "2":
+                serial_write("s 0")
+                serial_read()
+                serial_write("m")
+                print(serial_read())
+                serial_write("s 0.5")
+                serial_read()
+            case "3":
                 serial_write("s 0")
                 serial_read()
                 return
@@ -73,7 +92,7 @@ def main():
     while not close:
         print("What would you like to do?")
         print("\t[1] Configure motor directions")
-        print("\t[2] Run motors")
+        print("\t[2] Run both motors")
         print("\t[3] Exit")
         choice = input()
 

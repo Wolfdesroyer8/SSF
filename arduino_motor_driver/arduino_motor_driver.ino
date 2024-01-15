@@ -90,7 +90,7 @@ void loop() {
     m1_lastSensorHits = m1_sensorHits;
     m2_lastSensorHits = m2_sensorHits;
   }
-  // This isnt really rpm but I just multiply by 10 to make it not a decimal
+  // This isnt really rpm but I just multiply by 10 to make it less of a decimal
   float m1_rpm = 10*(m1_rawVelocity); 
   float m2_rpm = 10*(m2_rawVelocity); 
 
@@ -128,6 +128,8 @@ void loop() {
         break;
       case 'p':
         Serial.println("Pong!");
+        Serial.println(m1_sensorHits);
+        Serial.println(m2_sensorHits);
         break;
       default:
         Serial.print("ERROR: Invalid Command: ");
