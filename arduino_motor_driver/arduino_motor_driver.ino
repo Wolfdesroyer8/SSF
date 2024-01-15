@@ -1,113 +1,131 @@
 #include <util/atomic.h>
 
 // Set pin numbers
-#define hallSensorA 2
-#define driverPin 5
-#define driverIn1 11
-#define driverIn2 12
-#define encoderPwr 6
+#define m1_hallSensorA 2
+#define m1_driverPin 5
+#define m1_driverIn1 11
+#define m1_driverIn2 12
+#define m1_encoderPwr 4
+
+#define m2_hallSensorA 3
+#define m2_driverPin 6
+#define m2_driverIn1 9
+#define m2_driverIn2 10
+#define m2_encoderPwr 7
 
 // starting speed, 1 is max, 0 is none, anything less than 0.3 doesnt move
 #define SPEED 0
 
 // define variables
-volatile int sensorHits_i = 0;
+volatile int m1_sensorHits_i = 0;
+volatile int m2_sensorHits_i = 0;
 
 char serialInput[12];
 int newData = 0;
 int currentIndex = 0;
 
-float currentSpeed = SPEED;
-float rawVelocity = 0;
-float rpm = 0;
-int direction = 1;
+float m1_currentSpeed = SPEED;
+float m1_rawVelocity = 0;
+float m1_rpm = 0;
+int m1_direction = 1;
+
+float m2_currentSpeed = SPEED;
+float m2_rawVelocity = 0;
+float m2_rpm = 0;
+int m2_direction = 1;
 
 long lastTime = 0;
-int lastSensorHits = 0;
+int m1_lastSensorHits = 0;
+int m2_lastSensorHits = 0;
+
+int currentSelectedMotor = 1;
+float *currentSelectedMotorPtr = NULL;
 
 void setup() {
   // Intialize Serial
   Serial.begin(9600);
   // Initalize Pin Modes
-  pinMode(hallSensorA, INPUT_PULLUP);
-  pinMode(driverIn1, OUTPUT);
-  pinMode(driverIn2, OUTPUT);
-  pinMode(driverPin, OUTPUT);
-  pinMode(encoderPwr, OUTPUT);
-  // Power the encoder and set the intial direction
-  digitalWrite(driverIn1, HIGH);
-  digitalWrite(driverIn2, LOW);
-  digitalWrite(encoderPwr, HIGH);
-  attachInterrupt(digitalPinToInterrupt(hallSensorA), sensorHit, CHANGE);
+  pinMode(m1_hallSensorA, INPUT_PULLUP);
+  pinMode(m1_driverIn1, OUTPUT);
+  pinMode(m1_driverIn2, OUTPUT);
+  pinMode(m1_driverPin, OUTPUT);
+  pinMode(m1_encoderPwr, OUTPUT);
 
-  analogWrite(driverPin, SPEED*255);
+  pinMode(m2_hallSensorA, INPUT_PULLUP);
+  pinMode(m2_driverIn1, OUTPUT);
+  pinMode(m2_driverIn2, OUTPUT);
+  pinMode(m2_driverPin, OUTPUT);
+  pinMode(m2_encoderPwr, OUTPUT);
+  // Power the encoder and set the intial direction
+  digitalWrite(m1_driverIn1, HIGH);
+  digitalWrite(m1_driverIn2, LOW);
+  digitalWrite(m1_encoderPwr, HIGH);
+  attachInterrupt(digitalPinToInterrupt(m1_hallSensorA), m1_sensorHit, CHANGE);
+
+  digitalWrite(m2_driverIn1, HIGH);
+  digitalWrite(m2_driverIn2, LOW);
+  digitalWrite(m2_encoderPwr, HIGH);
+  attachInterrupt(digitalPinToInterrupt(m2_hallSensorA), m2_sensorHit, CHANGE);
+
+  analogWrite(m1_driverPin, SPEED*255);
+  analogWrite(m2_driverPin, SPEED*255);
 }
 
 void loop() {
   // Get the number of sensor hits in non volatile stack
-  int sensorHits = 0;
+  int m1_sensorHits = 0;
+  int m2_sensorHits = 0;
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
-    sensorHits = sensorHits_i;
+    m1_sensorHits = m1_sensorHits_i;
+    m2_sensorHits = m2_sensorHits_i;
   }
 
   // Calculate rpm
   long currentTime = micros();
   float deltaTime = (float) ((currentTime - lastTime)/1000);
   if (deltaTime > 250) {
-    rawVelocity = (float) ((sensorHits - lastSensorHits)/deltaTime);
+    m1_rawVelocity = (float) ((m1_sensorHits - m1_lastSensorHits)/deltaTime);
+    m2_rawVelocity = (float) ((m2_sensorHits - m2_lastSensorHits)/deltaTime);
     lastTime = currentTime;
-    lastSensorHits = sensorHits;
+    m1_lastSensorHits = m1_sensorHits;
+    m2_lastSensorHits = m2_sensorHits;
   }
   // This isnt really rpm but I just multiply by 10 to make it not a decimal
-  float rpm = 10*(rawVelocity); 
+  float m1_rpm = 10*(m1_rawVelocity); 
+  float m2_rpm = 10*(m2_rawVelocity); 
 
   // Get serial input and check commands
   checkSerialData();
   if (newData == 1) {
     switch(serialInput[0]) {
+      case 'm':
+        if (currentSelectedMotor == 1) {
+          currentSelectedMotor = 2;
+          Serial.println("Selecting motor 2");
+        } else {
+          currentSelectedMotor = 1;
+          Serial.println("Selecting motor 1");
+        }
+        break;
       case 's': 
         serialInput[0] = ' ';
-        currentSpeed = atof(serialInput);
-
-        if (currentSpeed < 0) {
-          Serial.println("ERROR: Speed below 0, setting to 0");
-          currentSpeed = 0;
-        } else if (currentSpeed > 1) {
-          Serial.println("ERROR: Speed above 1, setting to 1");
-          currentSpeed = 1;
-        } else if (currentSpeed < 0.3 && currentSpeed != 0) {
-          Serial.println("ERROR: Speed below 0.3, setting to 0.3");
-          currentSpeed = 0.3;
-        }
-
-        if (currentSpeed <= 0.4 && currentSpeed != 0) {
-          analogWrite(driverPin, 0.5*255);
-          delay(50);
-        }
-        Serial.print("Setting speed to: ");
-        Serial.println(currentSpeed);
-        analogWrite(driverPin, currentSpeed*255);
+        if (currentSelectedMotor == 1)
+          setSpeed(&m1_currentSpeed, m1_driverPin);
+        else
+          setSpeed(&m2_currentSpeed, m2_driverPin);
         break;
       case 'r':
-        Serial.print("Current rpm: ");
-        Serial.println(rpm);
+        if (currentSelectedMotor == 1) 
+          rpm(m1_rpm);
+        else 
+          rpm(m2_rpm);
         break;
       case 't': 
-          if (rpm <= 0.1) { 
-            Serial.println("Changing direction");
-            if (direction == 1) {
-                digitalWrite(driverIn1, LOW);
-                digitalWrite(driverIn2, HIGH);
-                direction = 0;
-            } else {
-                digitalWrite(driverIn1, HIGH);
-                digitalWrite(driverIn2, LOW);
-                direction = 1;
-            }
-          } else {
-            Serial.println("ERROR: Stop motor before changing direction");
-          }
-          break;
+        if (currentSelectedMotor == 1)
+          changeDirection(m1_driverIn1, m1_driverIn2, m1_rpm, &m1_direction);
+        else 
+          changeDirection(m2_driverIn1, m2_driverIn2, m2_rpm, &m2_direction);
+        break;
       case 'p':
         Serial.println("Pong!");
         break;
@@ -117,6 +135,51 @@ void loop() {
     }
     clearSerialData();
   }
+}
+
+void changeDirection(int driverIn1, int driverIn2, float rpm, int* direction) {
+  if (rpm <= 0.1) { 
+    Serial.println("Changing direction");
+    if (*direction == 1) {
+        digitalWrite(driverIn1, LOW);
+        digitalWrite(driverIn2, HIGH);
+        *direction = 0;
+    } else {
+        digitalWrite(driverIn1, HIGH);
+        digitalWrite(driverIn2, LOW);
+        *direction = 1;
+    }
+  } else {
+    Serial.println("ERROR: Stop motor before changing direction");
+  }
+}
+
+void setSpeed(float *speed, int driverPin) {
+  *speed = atof(serialInput);
+
+  if (*speed < 0) {
+    Serial.println("ERROR: Speed below 0, setting to 0");
+    *speed = 0;
+  } else if (*speed > 1) {
+    Serial.println("ERROR: Speed above 1, setting to 1");
+    *speed = 1;
+  } else if (*speed < 0.3 && *speed != 0) {
+    Serial.println("ERROR: Speed below 0.3, setting to 0.3");
+    *speed= 0.3;
+  }
+
+  if (*speed<= 0.4 && *speed!= 0) {
+    analogWrite(driverPin, 0.5*255);
+    delay(50);
+  }
+  Serial.print("Setting speed to: ");
+  Serial.println(*speed);
+  analogWrite(driverPin, *speed*255);
+}
+
+void rpm(float rpm) {
+  Serial.print("Current rpm: ");
+  Serial.println(rpm);
 }
 
 void checkSerialData() {
@@ -139,6 +202,10 @@ void clearSerialData() {
   newData = 0;
 }
 
-void sensorHit() {
-  sensorHits_i++;
+void m1_sensorHit() {
+  m1_sensorHits_i++;
+}
+
+void m2_sensorHit() {
+  m2_sensorHits_i++;
 }
