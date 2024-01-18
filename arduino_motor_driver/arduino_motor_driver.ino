@@ -112,8 +112,15 @@ void loop() {
   float m1_derivative = kd*((m1_lastError - m1_error)/deltaTime);
   float m1_pidOffset = m1_proportional + m1_integral + m1_derivative;
 
+  float m2_error = (m2_rpm - 10*m2_setSpeed);
+  float m2_proportional = m2_error*kp;
+  float m2_integral += m2_error*deltaTime*ki;
+  float m2_derivative = kd*((m2_lastError - m2_error)/deltaTime);
+  float m2_pidOffset = m2_proportional + m2_integral + m2_derivative
+
   // Uncomment to enable pid
   // analogWrite(m1_driverPin, (m1_setSpeed + m1_pidOffset)*255);
+  // analogWrite(m2_driverPin, (m2_setSpeed + m2_pidOffset)*255);
 
   // Get serial input and check commands
   checkSerialData();
