@@ -24,12 +24,18 @@ char serialInput[12];
 int newData = 0;
 int currentIndex = 0;
 
-float m1_currentSpeed = SPEED;
+float m1_lastError = 0;
+float m2_lastError = 0;
+float kp = 1;
+float ki = 1;
+float kd = 1;
+
+float m1_setSpeed = SPEED;
 float m1_rawVelocity = 0;
 float m1_rpm = 0;
 int m1_direction = 1;
 
-float m2_currentSpeed = SPEED;
+float m2_setSpeed = SPEED;
 float m2_rawVelocity = 0;
 float m2_rpm = 0;
 int m2_direction = 1;
@@ -84,6 +90,7 @@ void loop() {
   long currentTime = micros();
   float deltaTime = (float) ((currentTime - lastTime)/1000);
   if (deltaTime > 250) {
+    // Calculate current speed
     m1_rawVelocity = (float) ((m1_sensorHits - m1_lastSensorHits)/deltaTime);
     m2_rawVelocity = (float) ((m2_sensorHits - m2_lastSensorHits)/deltaTime);
     lastTime = currentTime;
@@ -93,6 +100,16 @@ void loop() {
   // This isnt really rpm but I just multiply by 10 to make it less of a decimal
   float m1_rpm = 10*(m1_rawVelocity); 
   float m2_rpm = 10*(m2_rawVelocity); 
+
+  // PID
+  float m1_error = pow((m1_rpm - 10*m1_setSpeed), 2);
+  float m1_proportional = m1_error*kp;
+  // float m1_integral += m1_error*deltaTime*ki;
+  // float m1_derivative = m1_error*kd;
+  float m1_pidOffset = m1_proportional;
+
+  // Uncomment to enable pid
+  // analogWrite(m1_driverPin, (m1_setSpeed + m1_pidOffset)*255);
 
   // Get serial input and check commands
   checkSerialData();
@@ -110,9 +127,9 @@ void loop() {
       case 's': 
         serialInput[0] = ' ';
         if (currentSelectedMotor == 1)
-          setSpeed(&m1_currentSpeed, m1_driverPin);
+          setSpeed(&m1_setSpeed, m1_driverPin);
         else
-          setSpeed(&m2_currentSpeed, m2_driverPin);
+          setSpeed(&m2_setSpeed, m2_driverPin);
         break;
       case 'r':
         if (currentSelectedMotor == 1) 
@@ -130,6 +147,9 @@ void loop() {
         Serial.println("Pong!");
         Serial.println(m1_sensorHits);
         Serial.println(m2_sensorHits);
+        break;
+      case 'e':
+        Serial.println(m1_error);
         break;
       default:
         Serial.print("ERROR: Invalid Command: ");
