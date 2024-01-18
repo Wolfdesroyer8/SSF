@@ -102,11 +102,15 @@ void loop() {
   float m2_rpm = 10*(m2_rawVelocity); 
 
   // PID
-  float m1_error = pow((m1_rpm - 10*m1_setSpeed), 2);
+  if (deltaTime > 250) {
+    m1_lastError = m1_error;
+    m2_lastError = m2_error;
+  }
+  float m1_error = (m1_rpm - 10*m1_setSpeed);
   float m1_proportional = m1_error*kp;
-  // float m1_integral += m1_error*deltaTime*ki;
-  // float m1_derivative = m1_error*kd;
-  float m1_pidOffset = m1_proportional;
+  float m1_integral += m1_error*deltaTime*ki;
+  float m1_derivative = kd*((m1_lastError - m1_error)/deltaTime);
+  float m1_pidOffset = m1_proportional + m1_integral + m1_derivative;
 
   // Uncomment to enable pid
   // analogWrite(m1_driverPin, (m1_setSpeed + m1_pidOffset)*255);
